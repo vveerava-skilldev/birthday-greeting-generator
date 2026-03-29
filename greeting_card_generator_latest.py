@@ -3,104 +3,64 @@ from PIL import Image, ImageDraw, ImageFont, ImageSequence
 import requests
 from io import BytesIO
 import random
-import imageio
+import tempfile
+import os
 
-st.set_page_config(page_title="🎂 Birthday Studio", page_icon="🎂")
+from moviepy.editor import ImageSequenceClip, AudioFileClip
 
-st.title("🎂 Birthday Card + Music Generator")
+st.set_page_config(page_title="🎂 Birthday Studio Pro", page_icon="🎂")
+
+st.title("🎂 Birthday Card + Music + Video Generator")
 
 # -------------------------------
 # Inputs
 # -------------------------------
-name = st.text_input("Enter Friend's Name")
+name = st.text_input("Enter Name")
 
-theme = st.selectbox(
-    "Theme",
-    ["Floral 🌸", "Party 🎈", "Elegant ✨", "Minimal 🎁"]
-)
-
-mode = st.radio(
-    "Message Mode",
-    ["🧠 Auto", "🎨 Custom"]
-)
+mode = st.radio("Message Mode", ["🧠 Auto", "🎨 Custom"])
 
 custom_msg = ""
 if mode == "🎨 Custom":
-    custom_msg = st.text_area("Enter message")
+    custom_msg = st.text_area("Enter your message")
 
 music_style = st.selectbox(
     "Music Style",
-    ["Fun 🎉", "Emotional 💖", "Rap 🎤", "Classic 🎼"]
+    ["Fun 🎉", "Emotional 💖", "Classic 🎼"]
 )
 
 # -------------------------------
-# GIF Backgrounds
+# GIFs
 # -------------------------------
 GIFS = [
     "https://media.giphy.com/media/3o6ZtpxSZbQRRnwCKQ/giphy.gif",
-    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif",
-    "https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif"
+    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
 ]
 
 def get_gif():
     return random.choice(GIFS)
 
 # -------------------------------
-# Smart Messages
+# Messages
 # -------------------------------
-def smart_messages(name, theme):
-    base = [
-        f"Happy Birthday {name}!",
-        f"Hey {name}!",
-        f"Dear {name},"
-    ]
+def smart_msg(name):
+    return f"""🎉 Happy Birthday {name}!
+Wishing you joy, smiles and success!
 
-    lines = [
-        "Wishing you happiness and smiles",
-        "Celebrate today and enjoy every moment",
-        "Keep shining always"
-    ]
-
-    sign = "💖 Your lovingly - Thanu"
-
-    return [f"{random.choice(base)}\n{random.choice(lines)}\n\n{sign}"]
+💖 Your lovingly - Thanu"""
 
 # -------------------------------
-# Lyrics Generator
-# -------------------------------
-def generate_lyrics(name, style):
-    return f"""
-🎶 Happy Birthday {name} 🎶
-
-Today is your special day,
-Smile bright in every way!
-Dream big and shine so bright,
-Celebrate with joy tonight!
-
-💖 Your lovingly - Thanu
-"""
-
-# -------------------------------
-# Music Links
+# Music URLs (FREE)
 # -------------------------------
 MUSIC = {
     "Fun 🎉": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     "Emotional 💖": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-    "Rap 🎤": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-    "Classic 🎼": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+    "Classic 🎼": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
 }
 
 # -------------------------------
-# Decorations
+# Create GIF Card
 # -------------------------------
-def draw_decor(draw, w, h, theme):
-    for _ in range(10):
-        draw.text((random.randint(0,w), random.randint(0,h)), "✨")
-
-# -------------------------------
-# Create Animated GIF
-# -------------------------------
-def create_gif(gif_url, text, theme):
+def create_gif(gif_url, text):
     response = requests.get(gif_url)
     gif = Image.open(BytesIO(response.content))
 
@@ -116,50 +76,49 @@ def create_gif(gif_url, text, theme):
         draw = ImageDraw.Draw(frame)
 
         draw.rectangle(
-            [(20, frame.height-150), (frame.width-20, frame.height-20)],
+            [(20, frame.height-160), (frame.width-20, frame.height-20)],
             fill=(255,255,255,200)
         )
 
-        lines = text.split("\n")
-        y = frame.height - 140
-
-        for line in lines:
+        y = frame.height - 150
+        for line in text.split("\n"):
             w = draw.textlength(line, font=font)
             x = (frame.width - w) // 2
-            draw.text((x,y), line, fill="black", font=font)
-            y += 30
+            draw.text((x, y), line, fill="black", font=font)
+            y += 35
 
-        draw_decor(draw, frame.width, frame.height, theme)
+        frames.append(frame)
 
-        frames.append(frame.convert("P"))
-
-    buf = BytesIO()
-    frames[0].save(
-        buf,
-        format="GIF",
-        save_all=True,
-        append_images=frames[1:],
-        duration=100,
-        loop=0
-    )
-    buf.seek(0)
-    return buf
+    return frames
 
 # -------------------------------
-# Convert GIF to Video
+# Create Video with Audio 🎬🎶
 # -------------------------------
-def gif_to_video(gif_bytes):
-    gif = Image.open(gif_bytes)
-    frames = []
+def create_video(frames, audio_url):
+    # Save audio temp
+    audio_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    audio_path = audio_temp.name
 
-    for frame in ImageSequence.Iterator(gif):
-        frames.append(frame.convert("RGB"))
+    audio_data = requests.get(audio_url).content
+    with open(audio_path, "wb") as f:
+        f.write(audio_data)
 
-    video_path = "/mnt/data/output.mp4"
+    # Convert PIL frames → list of arrays
+    frame_list = [frame.convert("RGB") for frame in frames]
 
-    imageio.mimsave(video_path, frames, fps=10)
+    # Save video temp
+    video_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    video_path = video_temp.name
 
-    return video_path
+    # Create video
+    clip = ImageSequenceClip([f for f in frame_list], fps=10)
+
+    audio = AudioFileClip(audio_path).subclip(0, clip.duration)
+    clip = clip.set_audio(audio)
+
+    clip.write_videofile(video_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+
+    return video_path, audio_path
 
 # -------------------------------
 # Generate
@@ -169,27 +128,30 @@ if st.button("🚀 Generate"):
     if not name:
         st.warning("Enter name")
     else:
-        msg = custom_msg if (mode=="🎨 Custom" and custom_msg) else smart_messages(name, theme)[0]
+        msg = custom_msg if (mode=="🎨 Custom" and custom_msg) else smart_msg(name)
 
         gif_url = get_gif()
+
         st.image(gif_url, caption="Preview")
 
-        gif_card = create_gif(gif_url, msg, theme)
+        frames = create_gif(gif_url, msg)
 
-        st.image(gif_card, caption="🎨 Animated Card")
+        # Show first frame preview
+        st.image(frames[0], caption="🎨 Card Preview")
 
-        st.download_button("📥 Download GIF", gif_card, file_name="card.gif")
+        # Create video
+        video_file, audio_file = create_video(frames, MUSIC[music_style])
 
-        # Lyrics
-        lyrics = generate_lyrics(name, music_style)
-        st.text_area("🎶 Lyrics", lyrics, height=200)
-
-        st.audio(MUSIC[music_style])
-
-        # Video
-        video_file = gif_to_video(gif_card)
-
+        # Show video
         st.video(video_file)
 
+        # Download
         with open(video_file, "rb") as f:
             st.download_button("📥 Download Video", f, file_name="birthday.mp4")
+
+        # Cleanup
+        try:
+            os.remove(video_file)
+            os.remove(audio_file)
+        except:
+            pass
