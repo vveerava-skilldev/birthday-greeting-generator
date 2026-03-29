@@ -3,11 +3,10 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 import random
-import time
 
-st.set_page_config(page_title="Birthday Card Generator", page_icon="🎂")
+st.set_page_config(page_title="Animated Birthday Cards", page_icon="🎂")
 
-st.title("🎂 Birthday Card Generator")
+st.title("🎂 Animated Birthday Card Generator")
 
 # -------------------------------
 # Inputs
@@ -20,96 +19,67 @@ style = st.selectbox(
 )
 
 # -------------------------------
-# Text Generator
+# Animated GIF Backgrounds (FREE)
+# -------------------------------
+GIFS = {
+    "Fun": [
+        "https://media.giphy.com/media/3o6ZtpxSZbQRRnwCKQ/giphy.gif",
+        "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
+    ],
+    "Minimal": [
+        "https://media.giphy.com/media/26ufdipQqU2lhNA4g/giphy.gif"
+    ],
+    "Modern": [
+        "https://media.giphy.com/media/3o7TKtnuHOHHUjR38Y/giphy.gif"
+    ],
+    "Friendship": [
+        "https://media.giphy.com/media/3o7btPCcdNniyf0ArS/giphy.gif"
+    ]
+}
+
+def get_gif(style):
+    return random.choice(GIFS.get(style, GIFS["Fun"]))
+
+# -------------------------------
+# Messages (Stylish + Clean)
 # -------------------------------
 def generate_messages(name):
-    templates = [
-        f"Happy Birthday {name}! Wishing you lots of happiness and smiles. 🎉\nYour lovingly - Thanu",
-        f"Hey {name}, hope your day is filled with joy and laughter! 🎂\nYour lovingly - Thanu",
-        f"{name}, another year, more memories! Have a wonderful birthday! 🎈\nYour lovingly - Thanu",
-        f"Happy Birthday {name}! Keep shining and smiling always 😊\nYour lovingly - Thanu",
-        f"Dear {name}, wishing you a calm and beautiful year ahead 🌸\nYour lovingly - Thanu"
+    messages = [
+        f"🎉 Happy Birthday {name}!\nWishing you endless smiles and happiness.\n\n💖 Your lovingly - Thanu",
+
+        f"🎂 Dear {name},\nMay your day be calm, joyful and full of love.\n\n🌸 Your lovingly - Thanu",
+
+        f"🎈 Hey {name}!\nCelebrate today, cherish always, smile forever.\n\n✨ Your lovingly - Thanu",
+
+        f"🌟 Happy Birthday {name}!\nKeep shining and spreading positivity.\n\n💫 Your lovingly - Thanu"
     ]
-    return random.sample(templates, 3)
+    return random.sample(messages, 3)
 
 # -------------------------------
-# Pollinations Image (Primary)
+# Create Card Image
 # -------------------------------
-def generate_image(prompt):
-    try:
-        url = f"https://image.pollinations.ai/prompt/{prompt}"
-        response = requests.get(url, timeout=8)
-
-        if response.status_code == 200 and "image" in response.headers.get("content-type", ""):
-            return Image.open(BytesIO(response.content))
-    except:
-        pass
-
-    return None
-
-# -------------------------------
-# Backup Image (Always works)
-# -------------------------------
-def fallback_image():
-    try:
-        url = "https://picsum.photos/512"
-        response = requests.get(url)
-        return Image.open(BytesIO(response.content))
-    except:
-        return Image.new("RGB", (512, 512), "lightblue")
-
-# -------------------------------
-# Final Image Fetcher
-# -------------------------------
-def get_image(prompt):
-    img = generate_image(prompt)
-
-    if img:
-        return img
-
-    st.warning("⚠️ AI image unavailable, using backup image")
-    return fallback_image()
-
-# -------------------------------
-# Card Creator (Improved Layout)
-# -------------------------------
-def create_card(image, text):
-    image = image.resize((512, 512))
-
-    card = Image.new("RGB", (512, 720), "white")
-    card.paste(image, (0, 0))
-
+def create_card(text):
+    card = Image.new("RGB", (600, 400), "white")
     draw = ImageDraw.Draw(card)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 22)
+        font = ImageFont.truetype("arial.ttf", 24)
     except:
         font = ImageFont.load_default()
 
-    # Wrap text
-    words = text.split()
-    lines = []
-    line = ""
+    lines = text.split("\n")
+    y = 80
 
-    for word in words:
-        if len(line + word) < 38:
-            line += word + " "
-        else:
-            lines.append(line)
-            line = word + " "
-    lines.append(line)
-
-    y_text = 530
     for line in lines:
-        draw.text((20, y_text), line, fill="black", font=font)
-        y_text += 28
+        draw.text((40, y), line, fill="black", font=font)
+        y += 40
 
     return card
 
 # -------------------------------
 # Generate Button
 # -------------------------------
-if st.button("Generate Cards"):
+if st.button("✨ Generate Animated Cards"):
 
     if not name:
         st.warning("Please enter a name")
@@ -119,16 +89,15 @@ if st.button("Generate Cards"):
         for i, msg in enumerate(messages):
             st.subheader(f"🎉 Option {i+1}")
 
-            prompt = f"{style} birthday card for {name}, soft colors, aesthetic, clean design"
+            # Show animated GIF
+            gif_url = get_gif(style)
+            st.image(gif_url, caption="🎬 Animated Background")
 
-            img = get_image(prompt)
+            # Show styled message
+            st.markdown(f"### 💌 Message\n{msg}")
 
-            st.image(img, caption="Generated Image")
-
-            st.write(msg)
-
-            # Create final card
-            card = create_card(img, msg)
+            # Create downloadable card (static)
+            card = create_card(msg)
 
             buf = BytesIO()
             card.save(buf, format="PNG")
@@ -136,6 +105,6 @@ if st.button("Generate Cards"):
             st.download_button(
                 label="📥 Download Card",
                 data=buf.getvalue(),
-                file_name=f"{name}_birthday_card_{i+1}.png",
+                file_name=f"{name}_card_{i+1}.png",
                 mime="image/png"
             )
