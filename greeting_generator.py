@@ -29,7 +29,7 @@ if st.button("Generate Greetings"):
         """
 
         response = client.chat.completions.create(
-            model="gpt-5-mini",
+            model="gpt-4o-mini", #gpt-5-mini",
             messages=[{"role": "user", "content": prompt}]
         )
 
