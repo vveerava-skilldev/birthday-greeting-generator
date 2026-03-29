@@ -3,13 +3,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageSequence
 import requests
 from io import BytesIO
 import random
+import imageio
 
-# -------------------------------
-# Page Config
-# -------------------------------
-st.set_page_config(page_title="🎂 Pro Birthday Cards", page_icon="🎂")
+st.set_page_config(page_title="🎂 Birthday Studio", page_icon="🎂")
 
-st.title("🎂 Pro Animated Birthday Card Generator")
+st.title("🎂 Birthday Card + Music Generator")
 
 # -------------------------------
 # Inputs
@@ -17,18 +15,23 @@ st.title("🎂 Pro Animated Birthday Card Generator")
 name = st.text_input("Enter Friend's Name")
 
 theme = st.selectbox(
-    "Choose Theme",
+    "Theme",
     ["Floral 🌸", "Party 🎈", "Elegant ✨", "Minimal 🎁"]
 )
 
 mode = st.radio(
     "Message Mode",
-    ["🧠 Auto Generate", "🎨 Custom Message"]
+    ["🧠 Auto", "🎨 Custom"]
 )
 
 custom_msg = ""
-if mode == "🎨 Custom Message":
-    custom_msg = st.text_area("Enter your custom birthday message")
+if mode == "🎨 Custom":
+    custom_msg = st.text_area("Enter message")
+
+music_style = st.selectbox(
+    "Music Style",
+    ["Fun 🎉", "Emotional 💖", "Rap 🎤", "Classic 🎼"]
+)
 
 # -------------------------------
 # GIF Backgrounds
@@ -43,132 +46,90 @@ def get_gif():
     return random.choice(GIFS)
 
 # -------------------------------
-# Smart Message Generator
+# Smart Messages
 # -------------------------------
-def smart_generate_messages(name, theme):
-    openers = [
+def smart_messages(name, theme):
+    base = [
         f"Happy Birthday {name}!",
         f"Hey {name}!",
-        f"Dear {name},",
-        f"Cheers to you {name}!"
+        f"Dear {name},"
     ]
 
-    vibes = {
-        "Floral 🌸": [
-            "May your day bloom with happiness",
-            "Wishing you a day full of peace and beauty"
-        ],
-        "Party 🎈": [
-            "Let’s celebrate big today",
-            "Time to enjoy, laugh and party"
-        ],
-        "Elegant ✨": [
-            "Wishing you grace and happiness always",
-            "May your journey be bright and meaningful"
-        ],
-        "Minimal 🎁": [
-            "Simple moments, big happiness",
-            "Stay happy, stay you"
-        ]
-    }
-
-    closings = [
-        "Keep shining always",
-        "Have an amazing year ahead",
-        "Enjoy your special day",
-        "Stay happy and blessed"
+    lines = [
+        "Wishing you happiness and smiles",
+        "Celebrate today and enjoy every moment",
+        "Keep shining always"
     ]
 
-    signature = "💖 Your lovingly - Thanu"
+    sign = "💖 Your lovingly - Thanu"
 
-    messages = []
+    return [f"{random.choice(base)}\n{random.choice(lines)}\n\n{sign}"]
 
-    for _ in range(3):
-        msg = f"{random.choice(openers)}\n" \
-              f"{random.choice(vibes[theme])}.\n" \
-              f"{random.choice(closings)}.\n\n{signature}"
+# -------------------------------
+# Lyrics Generator
+# -------------------------------
+def generate_lyrics(name, style):
+    return f"""
+🎶 Happy Birthday {name} 🎶
 
-        messages.append(msg)
+Today is your special day,
+Smile bright in every way!
+Dream big and shine so bright,
+Celebrate with joy tonight!
 
-    return messages
+💖 Your lovingly - Thanu
+"""
+
+# -------------------------------
+# Music Links
+# -------------------------------
+MUSIC = {
+    "Fun 🎉": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "Emotional 💖": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    "Rap 🎤": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+    "Classic 🎼": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
+}
 
 # -------------------------------
 # Decorations
 # -------------------------------
-def draw_decor(draw, frame, theme):
-    w, h = frame.size
-
-    if "Floral" in theme:
-        for _ in range(15):
-            draw.text((random.randint(0,w), random.randint(0,h)), "🌸", fill="pink")
-
-    elif "Party" in theme:
-        for _ in range(10):
-            draw.text((random.randint(0,w), random.randint(0,h)), "🎈", fill="red")
-        for _ in range(15):
-            draw.text((random.randint(0,w), random.randint(0,h)), "🎊", fill="yellow")
-
-    elif "Elegant" in theme:
-        for _ in range(10):
-            draw.text((random.randint(0,w), random.randint(0,h)), "✨", fill="white")
-
-    elif "Minimal" in theme:
-        for _ in range(10):
-            draw.ellipse(
-                (random.randint(0,w), random.randint(0,h),
-                 random.randint(0,w)+3, random.randint(0,h)+3),
-                fill="gray"
-            )
+def draw_decor(draw, w, h, theme):
+    for _ in range(10):
+        draw.text((random.randint(0,w), random.randint(0,h)), "✨")
 
 # -------------------------------
-# Create Animated Card
+# Create Animated GIF
 # -------------------------------
-def create_card(gif_url, text, theme):
+def create_gif(gif_url, text, theme):
     response = requests.get(gif_url)
     gif = Image.open(BytesIO(response.content))
 
     frames = []
 
     try:
-        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 30)
-        text_font = ImageFont.truetype("DejaVuSans.ttf", 20)
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 28)
     except:
-        title_font = ImageFont.load_default()
-        text_font = ImageFont.load_default()
+        font = ImageFont.load_default()
 
     for frame in ImageSequence.Iterator(gif):
         frame = frame.convert("RGBA")
-
-        # Overlay box
-        overlay = Image.new("RGBA", frame.size, (0,0,0,0))
-        o_draw = ImageDraw.Draw(overlay)
-        o_draw.rectangle(
-            [(20, frame.height-160), (frame.width-20, frame.height-20)],
-            fill=(255,255,255,210)
-        )
-
-        frame = Image.alpha_composite(frame, overlay)
         draw = ImageDraw.Draw(frame)
 
-        # Decorations
-        draw_decor(draw, frame, theme)
+        draw.rectangle(
+            [(20, frame.height-150), (frame.width-20, frame.height-20)],
+            fill=(255,255,255,200)
+        )
 
-        # Text
         lines = text.split("\n")
-        y = frame.height - 150
+        y = frame.height - 140
 
-        for i, line in enumerate(lines):
-            font = title_font if i == 0 else text_font
-
-            text_width = draw.textlength(line, font=font)
-            x = (frame.width - text_width) // 2
-
-            # glow
-            draw.text((x-1,y-1), line, fill="gray", font=font)
-            draw.text((x+1,y+1), line, fill="gray", font=font)
-
+        for line in lines:
+            w = draw.textlength(line, font=font)
+            x = (frame.width - w) // 2
             draw.text((x,y), line, fill="black", font=font)
             y += 30
+
+        draw_decor(draw, frame.width, frame.height, theme)
 
         frames.append(frame.convert("P"))
 
@@ -178,39 +139,57 @@ def create_card(gif_url, text, theme):
         format="GIF",
         save_all=True,
         append_images=frames[1:],
-        duration=gif.info.get("duration", 100),
+        duration=100,
         loop=0
     )
-
     buf.seek(0)
     return buf
 
 # -------------------------------
-# Generate Button
+# Convert GIF to Video
 # -------------------------------
-if st.button("🚀 Generate Cards"):
+def gif_to_video(gif_bytes):
+    gif = Image.open(gif_bytes)
+    frames = []
+
+    for frame in ImageSequence.Iterator(gif):
+        frames.append(frame.convert("RGB"))
+
+    video_path = "/mnt/data/output.mp4"
+
+    imageio.mimsave(video_path, frames, fps=10)
+
+    return video_path
+
+# -------------------------------
+# Generate
+# -------------------------------
+if st.button("🚀 Generate"):
 
     if not name:
-        st.warning("Please enter a name")
+        st.warning("Enter name")
     else:
-        if mode == "🎨 Custom Message" and custom_msg:
-            messages = [custom_msg]
-        else:
-            messages = smart_generate_messages(name, theme)
+        msg = custom_msg if (mode=="🎨 Custom" and custom_msg) else smart_messages(name, theme)[0]
 
-        for i, msg in enumerate(messages):
-            st.subheader(f"🎉 Option {i+1}")
+        gif_url = get_gif()
+        st.image(gif_url, caption="Preview")
 
-            gif_url = get_gif()
-            st.image(gif_url, caption="🎬 Preview")
+        gif_card = create_gif(gif_url, msg, theme)
 
-            card = create_card(gif_url, msg, theme)
+        st.image(gif_card, caption="🎨 Animated Card")
 
-            st.image(card, caption="🎨 Final Animated Card")
+        st.download_button("📥 Download GIF", gif_card, file_name="card.gif")
 
-            st.download_button(
-                "📥 Download",
-                data=card,
-                file_name=f"{name}_card_{i+1}.gif",
-                mime="image/gif"
-            )
+        # Lyrics
+        lyrics = generate_lyrics(name, music_style)
+        st.text_area("🎶 Lyrics", lyrics, height=200)
+
+        st.audio(MUSIC[music_style])
+
+        # Video
+        video_file = gif_to_video(gif_card)
+
+        st.video(video_file)
+
+        with open(video_file, "rb") as f:
+            st.download_button("📥 Download Video", f, file_name="birthday.mp4")
