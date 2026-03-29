@@ -1,8 +1,11 @@
 streamlit
-openai
 pillow
 requests
+moviepy==1.0.3
 imageio
 imageio-ffmpeg
 gtts
-pydub
+numpy
+decorator
+tqdm
+proglog
