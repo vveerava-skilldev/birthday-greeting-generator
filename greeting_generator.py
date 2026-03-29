@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 import random
+import time
 
 st.title("🎂 Birthday Card Generator")
 
@@ -14,7 +15,9 @@ style = st.selectbox(
     ["Fun", "Minimal", "Modern", "Friendship"]
 )
 
-# Simple text generator (no API)
+# -------------------------------
+# Text Generator (No API)
+# -------------------------------
 def generate_messages(name):
     templates = [
         f"Happy Birthday {name}! Wishing you lots of happiness and smiles. 🎉\nYour lovingly - Thanu",
@@ -25,30 +28,79 @@ def generate_messages(name):
     ]
     return random.sample(templates, 3)
 
-# Generate Image from Pollinations
+# -------------------------------
+# Image Generator (Robust)
+# -------------------------------
 def generate_image(prompt):
     url = f"https://image.pollinations.ai/prompt/{prompt}"
-    response = requests.get(url)
-    return Image.open(BytesIO(response.content))
 
-# Create card image
+    try:
+        response = requests.get(url, timeout=10)
+
+        # Check status
+        if response.status_code != 200:
+            return None
+
+        # Check content type
+        content_type = response.headers.get("content-type", "")
+        if "image" not in content_type:
+            return None
+
+        return Image.open(BytesIO(response.content))
+
+    except:
+        return None
+
+# -------------------------------
+# Retry Wrapper
+# -------------------------------
+def get_image_with_retry(prompt, retries=3):
+    for _ in range(retries):
+        img = generate_image(prompt)
+        if img:
+            return img
+        time.sleep(1)
+    return None
+
+# -------------------------------
+# Card Creator
+# -------------------------------
 def create_card(image, text):
     image = image.resize((512, 512))
+
     card = Image.new("RGB", (512, 700), "white")
     card.paste(image, (0, 0))
 
     draw = ImageDraw.Draw(card)
 
     try:
-        font = ImageFont.truetype("arial.ttf", 20)
+        font = ImageFont.truetype("arial.ttf", 22)
     except:
         font = ImageFont.load_default()
 
-    draw.text((20, 530), text, fill="black", font=font)
+    # Wrap text manually
+    lines = []
+    words = text.split()
+    line = ""
+
+    for word in words:
+        if len(line + word) < 40:
+            line += word + " "
+        else:
+            lines.append(line)
+            line = word + " "
+    lines.append(line)
+
+    y_text = 530
+    for line in lines:
+        draw.text((20, y_text), line, fill="black", font=font)
+        y_text += 25
 
     return card
 
-# Button action
+# -------------------------------
+# UI Action
+# -------------------------------
 if st.button("Generate Cards"):
 
     if not name:
@@ -59,15 +111,19 @@ if st.button("Generate Cards"):
         for i, msg in enumerate(messages):
             st.subheader(f"🎉 Option {i+1}")
 
-            # Image prompt
-            prompt = f"{style} birthday card for {name}, soft colors, friendship theme"
+            prompt = f"high quality {style} birthday card for {name}, soft colors, clean design"
 
-            img = generate_image(prompt)
-            st.image(img, caption="Generated Image")
+            img = get_image_with_retry(prompt)
+
+            if img:
+                st.image(img, caption="Generated Image")
+            else:
+                st.warning("⚠️ Image generation failed. Showing fallback.")
+                img = Image.new("RGB", (512, 512), "lightblue")
 
             st.write(msg)
 
-            # Create downloadable card
+            # Create card
             card = create_card(img, msg)
 
             buf = BytesIO()
@@ -76,6 +132,6 @@ if st.button("Generate Cards"):
             st.download_button(
                 label="📥 Download Card",
                 data=buf.getvalue(),
-                file_name=f"{name}_birthday_card_{i+1}.png",
+                file_name=f"{name}_card_{i+1}.png",
                 mime="image/png"
             )
