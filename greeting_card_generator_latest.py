@@ -6,47 +6,26 @@ import random
 import tempfile
 import os
 
-from moviepy.editor import ImageSequenceClip, AudioFileClip
+from gtts import gTTS
+from pydub import AudioSegment
 
-st.set_page_config(page_title="🎂 Birthday Studio Pro", page_icon="🎂")
+from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 
-st.title("🎂 Birthday Card + Music + Video Generator")
+st.set_page_config(page_title="🎂 Birthday Studio", page_icon="🎂")
+
+st.markdown("## 🎁 Personalized Birthday Song + Video Generator")
+st.markdown("Enter a name → Get a custom song + video 🎶🎬")
 
 # -------------------------------
 # Inputs
 # -------------------------------
 name = st.text_input("Enter Name")
 
-mode = st.radio("Message Mode", ["🧠 Auto", "🎨 Custom"])
-
-custom_msg = ""
-if mode == "🎨 Custom":
-    custom_msg = st.text_area("Enter your message")
-
 music_style = st.selectbox(
     "Music Style",
     ["Fun 🎉", "Emotional 💖", "Classic 🎼"]
 )
-
-# -------------------------------
-# GIFs
-# -------------------------------
-GIFS = [
-    "https://media.giphy.com/media/3o6ZtpxSZbQRRnwCKQ/giphy.gif",
-    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
-]
-
-def get_gif():
-    return random.choice(GIFS)
-
-# -------------------------------
-# Messages
-# -------------------------------
-def smart_msg(name):
-    return f"""🎉 Happy Birthday {name}!
-Wishing you joy, smiles and success!
-
-💖 Your lovingly - Thanu"""
 
 # -------------------------------
 # Music URLs (FREE)
@@ -58,9 +37,76 @@ MUSIC = {
 }
 
 # -------------------------------
-# Create GIF Card
+# GIF Backgrounds
 # -------------------------------
-def create_gif(gif_url, text):
+GIFS = [
+    "https://media.giphy.com/media/3o6ZtpxSZbQRRnwCKQ/giphy.gif",
+    "https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif"
+]
+
+def get_gif():
+    return random.choice(GIFS)
+
+# -------------------------------
+# Lyrics Generator
+# -------------------------------
+def generate_lyrics(name, style):
+    return f"""
+🎶 Happy Birthday {name}! 🎶
+
+Hey {name}, it's your special day,
+Let's celebrate in a joyful way!
+Clap your hands and sing out loud,
+You're the brightest in the crowd!
+
+Happy birthday to you,
+All your dreams come true!
+Keep shining every day,
+In your own amazing way!
+
+💖 From Thanu
+"""
+
+# -------------------------------
+# Create Voice
+# -------------------------------
+def generate_voice(lyrics):
+    tts = gTTS(text=lyrics, lang='en')
+
+    temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    tts.save(temp_audio.name)
+
+    return temp_audio.name
+
+# -------------------------------
+# Mix Audio
+# -------------------------------
+def mix_audio(voice_path, music_url):
+    music_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+
+    music_data = requests.get(music_url).content
+    with open(music_file.name, "wb") as f:
+        f.write(music_data)
+
+    voice = AudioSegment.from_file(voice_path)
+    music = AudioSegment.from_file(music_file.name)
+
+    music = music - 18
+
+    music = music * (len(voice) // len(music) + 1)
+    music = music[:len(voice)]
+
+    final_audio = voice.overlay(music)
+
+    output = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    final_audio.export(output.name, format="mp3")
+
+    return output.name
+
+# -------------------------------
+# Create Frames
+# -------------------------------
+def create_frames(gif_url, text):
     response = requests.get(gif_url)
     gif = Image.open(BytesIO(response.content))
 
@@ -92,66 +138,73 @@ def create_gif(gif_url, text):
     return frames
 
 # -------------------------------
-# Create Video with Audio 🎬🎶
+# Create Video
 # -------------------------------
-def create_video(frames, audio_url):
-    # Save audio temp
-    audio_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    audio_path = audio_temp.name
-
-    audio_data = requests.get(audio_url).content
-    with open(audio_path, "wb") as f:
-        f.write(audio_data)
-
-    # Convert PIL frames → list of arrays
-    frame_list = [frame.convert("RGB") for frame in frames]
-
-    # Save video temp
+def create_video(frames, audio_path):
     video_temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     video_path = video_temp.name
 
-    # Create video
-    clip = ImageSequenceClip([f for f in frame_list], fps=10)
+    frame_list = [f.convert("RGB") for f in frames]
+
+    clip = ImageSequenceClip(frame_list, fps=10)
 
     audio = AudioFileClip(audio_path).subclip(0, clip.duration)
     clip = clip.set_audio(audio)
 
-    clip.write_videofile(video_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+    clip.write_videofile(
+        video_path,
+        codec="libx264",
+        audio_codec="aac",
+        verbose=False,
+        logger=None
+    )
 
-    return video_path, audio_path
+    return video_path
 
 # -------------------------------
-# Generate
+# MAIN FLOW
 # -------------------------------
-if st.button("🚀 Generate"):
+if st.button("🎉 Generate Personalized Song + Video"):
 
     if not name:
-        st.warning("Enter name")
+        st.warning("Please enter a name")
     else:
-        msg = custom_msg if (mode=="🎨 Custom" and custom_msg) else smart_msg(name)
+        with st.spinner("✨ Creating your birthday magic..."):
 
-        gif_url = get_gif()
+            # Lyrics
+            lyrics = generate_lyrics(name, music_style)
+            st.text_area("🎶 Your Song", lyrics, height=200)
 
-        st.image(gif_url, caption="Preview")
+            # Voice
+            voice_file = generate_voice(lyrics)
 
-        frames = create_gif(gif_url, msg)
+            # Mix audio
+            final_audio = mix_audio(voice_file, MUSIC[music_style])
+            st.audio(final_audio)
 
-        # Show first frame preview
-        st.image(frames[0], caption="🎨 Card Preview")
+            # Frames
+            gif_url = get_gif()
+            frames = create_frames(gif_url, lyrics)
+            st.image(frames[0], caption="🎨 Card Preview")
 
-        # Create video
-        video_file, audio_file = create_video(frames, MUSIC[music_style])
+            # Video
+            video_file = create_video(frames, final_audio)
+            st.video(video_file)
 
-        # Show video
-        st.video(video_file)
+            # Download
+            with open(video_file, "rb") as f:
+                st.download_button(
+                    "📥 Download Birthday Video",
+                    f,
+                    file_name=f"{name}_birthday.mp4"
+                )
 
-        # Download
-        with open(video_file, "rb") as f:
-            st.download_button("📥 Download Video", f, file_name="birthday.mp4")
+            # Cleanup
+            try:
+                os.remove(video_file)
+                os.remove(final_audio)
+                os.remove(voice_file)
+            except:
+                pass
 
-        # Cleanup
-        try:
-            os.remove(video_file)
-            os.remove(audio_file)
-        except:
-            pass
+            st.success("🎉 Your personalized birthday video is ready!")
