@@ -5,9 +5,13 @@ from io import BytesIO
 import random
 import time
 
+st.set_page_config(page_title="Birthday Card Generator", page_icon="🎂")
+
 st.title("🎂 Birthday Card Generator")
 
+# -------------------------------
 # Inputs
+# -------------------------------
 name = st.text_input("Enter Friend's Name")
 
 style = st.selectbox(
@@ -16,7 +20,7 @@ style = st.selectbox(
 )
 
 # -------------------------------
-# Text Generator (No API)
+# Text Generator
 # -------------------------------
 def generate_messages(name):
     templates = [
@@ -29,46 +33,50 @@ def generate_messages(name):
     return random.sample(templates, 3)
 
 # -------------------------------
-# Image Generator (Robust)
+# Pollinations Image (Primary)
 # -------------------------------
 def generate_image(prompt):
-    url = f"https://image.pollinations.ai/prompt/{prompt}"
-
     try:
-        response = requests.get(url, timeout=10)
+        url = f"https://image.pollinations.ai/prompt/{prompt}"
+        response = requests.get(url, timeout=8)
 
-        # Check status
-        if response.status_code != 200:
-            return None
-
-        # Check content type
-        content_type = response.headers.get("content-type", "")
-        if "image" not in content_type:
-            return None
-
-        return Image.open(BytesIO(response.content))
-
+        if response.status_code == 200 and "image" in response.headers.get("content-type", ""):
+            return Image.open(BytesIO(response.content))
     except:
-        return None
+        pass
 
-# -------------------------------
-# Retry Wrapper
-# -------------------------------
-def get_image_with_retry(prompt, retries=3):
-    for _ in range(retries):
-        img = generate_image(prompt)
-        if img:
-            return img
-        time.sleep(1)
     return None
 
 # -------------------------------
-# Card Creator
+# Backup Image (Always works)
+# -------------------------------
+def fallback_image():
+    try:
+        url = "https://picsum.photos/512"
+        response = requests.get(url)
+        return Image.open(BytesIO(response.content))
+    except:
+        return Image.new("RGB", (512, 512), "lightblue")
+
+# -------------------------------
+# Final Image Fetcher
+# -------------------------------
+def get_image(prompt):
+    img = generate_image(prompt)
+
+    if img:
+        return img
+
+    st.warning("⚠️ AI image unavailable, using backup image")
+    return fallback_image()
+
+# -------------------------------
+# Card Creator (Improved Layout)
 # -------------------------------
 def create_card(image, text):
     image = image.resize((512, 512))
 
-    card = Image.new("RGB", (512, 700), "white")
+    card = Image.new("RGB", (512, 720), "white")
     card.paste(image, (0, 0))
 
     draw = ImageDraw.Draw(card)
@@ -78,13 +86,13 @@ def create_card(image, text):
     except:
         font = ImageFont.load_default()
 
-    # Wrap text manually
-    lines = []
+    # Wrap text
     words = text.split()
+    lines = []
     line = ""
 
     for word in words:
-        if len(line + word) < 40:
+        if len(line + word) < 38:
             line += word + " "
         else:
             lines.append(line)
@@ -94,12 +102,12 @@ def create_card(image, text):
     y_text = 530
     for line in lines:
         draw.text((20, y_text), line, fill="black", font=font)
-        y_text += 25
+        y_text += 28
 
     return card
 
 # -------------------------------
-# UI Action
+# Generate Button
 # -------------------------------
 if st.button("Generate Cards"):
 
@@ -111,19 +119,15 @@ if st.button("Generate Cards"):
         for i, msg in enumerate(messages):
             st.subheader(f"🎉 Option {i+1}")
 
-            prompt = f"high quality {style} birthday card for {name}, soft colors, clean design"
+            prompt = f"{style} birthday card for {name}, soft colors, aesthetic, clean design"
 
-            img = get_image_with_retry(prompt)
+            img = get_image(prompt)
 
-            if img:
-                st.image(img, caption="Generated Image")
-            else:
-                st.warning("⚠️ Image generation failed. Showing fallback.")
-                img = Image.new("RGB", (512, 512), "lightblue")
+            st.image(img, caption="Generated Image")
 
             st.write(msg)
 
-            # Create card
+            # Create final card
             card = create_card(img, msg)
 
             buf = BytesIO()
@@ -132,6 +136,6 @@ if st.button("Generate Cards"):
             st.download_button(
                 label="📥 Download Card",
                 data=buf.getvalue(),
-                file_name=f"{name}_card_{i+1}.png",
+                file_name=f"{name}_birthday_card_{i+1}.png",
                 mime="image/png"
             )
