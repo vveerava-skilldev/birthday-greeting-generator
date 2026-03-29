@@ -1,8 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-YOUR_API_KEY="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"
 
-client = OpenAI(api_key="YOUR_API_KEY")
+
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# client = OpenAI(api_key="YOUR_API_KEY")
 
 st.title("🎂 Birthday Greeting Generator")
 
